@@ -105,6 +105,6 @@ echo "file '${images[$((total_images-1))]}'" >> "$INPUT_FILE"
 # Create the video using FFmpeg
 echo "Creating video..."
 set -x
-ffmpeg -f concat -safe 0 -i "$INPUT_FILE" -pix_fmt yuv420p "$OUTPUT_FILE"
+ffmpeg -y -f concat -safe 0 -i "$INPUT_FILE" -pix_fmt yuv420p "$OUTPUT_FILE"
 
 echo "Video creation complete: $OUTPUT_FILE"
