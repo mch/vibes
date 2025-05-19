@@ -81,9 +81,13 @@ for (( i=0; i<$total_images; i++ )); do
     # Calculate duration based on even/odd position
     if (( i % 2 == 0 )); then
         # Even-numbered images (0-indexed): 4.0s -> 0.5s
+        EVEN_FRAMES_MAX_TIME=4.0
+        EVEN_FRAMES_MIN_TIME=0.5
         duration=$(echo "scale=6; 4.0 - (4.0 - 0.5) * $progress" | bc -z)
     else
         # Odd-numbered images: 1.5s -> 0.25s
+        ODD_FRAMES_MAX_TIME=1.0
+        ODD_FRAMES_MIN_TIME=0.25
         duration=$(echo "scale=6; 1.5 - (1.5 - 0.25) * $progress" | bc -z)
     fi
 
