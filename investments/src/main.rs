@@ -45,26 +45,18 @@ struct Order {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    // Determine config file path
     let config_path = determine_config_path(&args.input, args.config)?;
-
-    // Determine output file path
     let output_path = determine_output_path(args.output, &args.input)?;
-
-    // Load configuration
     let config = load_config(&config_path)?;
     println!("Loaded config with {} funds", config.funds.len());
 
-    // Parse CSV input
     let (cash, holdings) = parse_csv(&args.input)?;
     println!("Cash: ${:.2}", cash);
     println!("Found {} holdings", holdings.len());
 
-    // Calculate orders
     let orders = calculate_orders(&config, cash, &holdings)?;
     println!("Generated {} orders", orders.len());
 
-    // Write output CSV
     write_orders(&output_path, &orders)?;
     println!("Orders written to {:?}", output_path);
 
