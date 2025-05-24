@@ -27,11 +27,9 @@ struct Config {
     funds: HashMap<String, f64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 struct Holding {
-    #[serde(rename = "Fund")]
-    fund: String,
-    #[serde(rename = "Market Value")]
+    symbol: String,
     market_value: f64,
 }
 
@@ -72,30 +70,57 @@ fn load_config(path: &PathBuf) -> Result<Config> {
 }
 
 fn parse_csv(path: &PathBuf) -> Result<(f64, Vec<Holding>)> {
-    let mut reader = csv::Reader::from_path(path)?;
+    let content = fs::read_to_string(path)?;
+    let lines: Vec<&str> = content.lines().collect();
+    
     let mut holdings = Vec::new();
     let mut cash = 0.0;
+    let mut in_data_section = false;
+    let mut symbol_index = None;
+    let mut market_value_index = None;
 
-    for result in reader.deserialize() {
-        let record: HashMap<String, String> = result?;
-
-        // Look for cash entry
-        if let Some(fund) = record.get("Fund") {
-            if fund.to_lowercase().contains("cash") {
-                if let Some(value_str) = record.get("Market Value") {
-                    cash = value_str.parse().unwrap_or(0.0);
-                }
-                continue;
+    for line in lines {
+        let fields: Vec<&str> = line.split(',').collect();
+        
+        // Look for cash entry in header section
+        if fields.len() >= 2 && fields[0].trim() == "Cash" {
+            if let Ok(value) = fields[1].trim().parse::<f64>() {
+                cash = value;
             }
+            continue;
         }
 
-        // Parse holding
-        if let (Some(fund), Some(market_value_str)) = (record.get("Fund"), record.get("Market Value")) {
-            if let Ok(market_value) = market_value_str.parse::<f64>() {
-                holdings.push(Holding {
-                    fund: fund.clone(),
-                    market_value,
-                });
+        // Check if this is the column header row
+        if fields.len() > 10 && fields[0].trim() == "Symbol" {
+            // Find column indices
+            for (i, field) in fields.iter().enumerate() {
+                match field.trim() {
+                    "Symbol" => symbol_index = Some(i),
+                    "Market Value" => market_value_index = Some(i),
+                    _ => {}
+                }
+            }
+            in_data_section = true;
+            continue;
+        }
+
+        // Parse data rows if we're in the data section
+        if in_data_section && fields.len() > 10 {
+            if let (Some(sym_idx), Some(mv_idx)) = (symbol_index, market_value_index) {
+                if sym_idx < fields.len() && mv_idx < fields.len() {
+                    let symbol = fields[sym_idx].trim();
+                    let market_value_str = fields[mv_idx].trim();
+                    
+                    // Skip empty symbols and parse market value
+                    if !symbol.is_empty() && !market_value_str.is_empty() {
+                        if let Ok(market_value) = market_value_str.parse::<f64>() {
+                            holdings.push(Holding {
+                                symbol: symbol.to_string(),
+                                market_value,
+                            });
+                        }
+                    }
+                }
             }
         }
     }
@@ -114,7 +139,7 @@ fn calculate_orders(config: &Config, cash: f64, holdings: &[Holding]) -> Result<
         let target_value = total_value * (target_percent / 100.0);
         let current_value = holdings
             .iter()
-            .find(|h| &h.fund == fund_name)
+            .find(|h| &h.symbol == fund_name)
             .map(|h| h.market_value)
             .unwrap_or(0.0);
 
@@ -137,7 +162,7 @@ fn write_orders(path: &PathBuf, orders: &[Order]) -> Result<()> {
     let mut writer = csv::Writer::from_path(path)?;
 
     // Write header
-    writer.write_record(&["Fund", "Action", "Amount"])?;
+    writer.write_record(&["Symbol", "Action", "Amount"])?;
 
     // Write orders
     for order in orders {
