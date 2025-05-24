@@ -47,12 +47,17 @@ fn main() -> Result<()> {
     let config_path = match args.config {
         Some(path) => path,
         None => {
-            let mut default_config = args.input.parent()
+            let mut default_config = args
+                .input
+                .parent()
                 .ok_or_else(|| anyhow::anyhow!("Cannot determine parent directory of input file"))?
                 .to_path_buf();
             default_config.push("config.toml");
             if !default_config.exists() {
-                return Err(anyhow::anyhow!("Config file not found at {:?}. Please create it or specify with --config", default_config));
+                return Err(anyhow::anyhow!(
+                    "Config file not found at {:?}. Please create it or specify with --config",
+                    default_config
+                ));
             }
             default_config
         }
@@ -62,7 +67,9 @@ fn main() -> Result<()> {
     let output_path = match args.output {
         Some(path) => path,
         None => {
-            let input_stem = args.input.file_stem()
+            let input_stem = args
+                .input
+                .file_stem()
                 .ok_or_else(|| anyhow::anyhow!("Cannot determine filename from input path"))?
                 .to_str()
                 .ok_or_else(|| anyhow::anyhow!("Input filename contains invalid UTF-8"))?;
@@ -101,7 +108,7 @@ fn load_config(path: &PathBuf) -> Result<Config> {
 fn parse_csv(path: &PathBuf) -> Result<(f64, Vec<Holding>)> {
     let content = fs::read_to_string(path)?;
     let lines: Vec<&str> = content.lines().collect();
-    
+
     let mut holdings = Vec::new();
     let mut cash = 0.0;
     let mut in_data_section = false;
@@ -110,7 +117,7 @@ fn parse_csv(path: &PathBuf) -> Result<(f64, Vec<Holding>)> {
 
     for line in lines {
         let fields: Vec<&str> = line.split(',').collect();
-        
+
         // Look for cash entry in header section
         if fields.len() >= 2 && fields[0].trim() == "Cash" {
             if let Ok(value) = fields[1].trim().parse::<f64>() {
@@ -139,7 +146,7 @@ fn parse_csv(path: &PathBuf) -> Result<(f64, Vec<Holding>)> {
                 if sym_idx < fields.len() && mv_idx < fields.len() {
                     let symbol = fields[sym_idx].trim();
                     let market_value_str = fields[mv_idx].trim();
-                    
+
                     // Skip empty symbols and parse market value
                     if !symbol.is_empty() && !market_value_str.is_empty() {
                         if let Ok(market_value) = market_value_str.parse::<f64>() {
@@ -174,7 +181,8 @@ fn calculate_orders(config: &Config, cash: f64, holdings: &[Holding]) -> Result<
 
         let difference = target_value - current_value;
 
-        if difference.abs() > 1.0 { // Only create orders for differences > $1
+        if difference.abs() > 1.0 {
+            // Only create orders for differences > $1
             let action = if difference > 0.0 { "BUY" } else { "SELL" };
             orders.push(Order {
                 fund: fund_name.clone(),
@@ -195,11 +203,7 @@ fn write_orders(path: &PathBuf, orders: &[Order]) -> Result<()> {
 
     // Write orders
     for order in orders {
-        writer.write_record(&[
-            &order.fund,
-            &order.action,
-            &format!("{:.2}", order.amount),
-        ])?;
+        writer.write_record(&[&order.fund, &order.action, &format!("{:.2}", order.amount)])?;
     }
 
     writer.flush()?;
