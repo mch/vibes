@@ -1,0 +1,11 @@
+As of Date,2025-05-24 14:39:25
+Account,EXAMPLE BANK - 123456789
+Cash,2500.00
+Investments,47500.00
+Total Value,50000.00
+Margin,,
+,
+Symbol,Market,Description,Quantity,Average Cost,Price,Book Cost,Market Value,Unrealized $,Unrealized %,% of Positions,Loan Value,Change Today $,Change Today %,Bid,Bid Lots,Ask,Ask Lots,Volume,Day Low,Day High,52-wk Low,52-wk High
+VTSAX,,Vanguard Total Stock Market,500.123,45.67,50.00,22845.12,25006.15,2161.03,9.46,52.6,,,,,,,,,,,,
+VTIAX,,Vanguard Total International,300.456,35.89,40.12,10784.87,12054.30,1269.43,11.77,25.4,,,,,,,,,,,,
+VBTLX,,Vanguard Total Bond Market,250.789,42.18,41.75,10580.96,10470.05,-110.91,-1.05,22.0,,,,,,,,,,,,

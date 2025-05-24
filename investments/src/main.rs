@@ -209,3 +209,180 @@ fn write_orders(path: &PathBuf, orders: &[Order]) -> Result<()> {
     writer.flush()?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_load_config() {
+        let config_content = r#"
+[funds]
+ABC123 = 60.0
+ABC456 = 30.0
+ABC789 = 10.0
+"#;
+        let mut temp_file = NamedTempFile::new().unwrap();
+        write!(temp_file, "{}", config_content).unwrap();
+        
+        let config = load_config(&temp_file.path().to_path_buf()).unwrap();
+        
+        assert_eq!(config.funds.len(), 3);
+        assert_eq!(config.funds.get("ABC123"), Some(&60.0));
+        assert_eq!(config.funds.get("ABC456"), Some(&30.0));
+        assert_eq!(config.funds.get("ABC789"), Some(&10.0));
+    }
+
+    #[test]
+    fn test_parse_csv() {
+        let csv_content = r#"As of Date,2025-05-24 14:39:25
+Account,BANK NAME - ACCOUNT NUMBER
+Cash,5600.43
+Investments,59361.28
+Total Value,64961.71
+,
+Symbol,Market,Description,Quantity,Average Cost,Price,Book Cost,Market Value,Unrealized $,Unrealized %,% of Positions,Loan Value,Change Today $,Change Today %,Bid,Bid Lots,Ask,Ask Lots,Volume,Day Low,Day High,52-wk Low,52-wk High
+ABC123,,FUND1,123.456,31.789,56.43,3924.54,6966.62,3042.08,77.51,10.72,,,,,,,,,,,,
+ABC456,,FUND2,1234.678,34.232,15.343,42265.50,18943.66,-23321.83,-55.18,29.16,,,,,,,,,,,,
+ABC789,,FUND3,1031.324,13.456,32.435,13877.50,33450.99,19573.50,141.04,51.49,,,,,,,,,,,,
+"#;
+        let mut temp_file = NamedTempFile::new().unwrap();
+        write!(temp_file, "{}", csv_content).unwrap();
+        
+        let (cash, holdings) = parse_csv(&temp_file.path().to_path_buf()).unwrap();
+        
+        assert_eq!(cash, 5600.43);
+        assert_eq!(holdings.len(), 3);
+        assert_eq!(holdings[0].symbol, "ABC123");
+        assert_eq!(holdings[0].market_value, 6966.62);
+        assert_eq!(holdings[1].symbol, "ABC456");
+        assert_eq!(holdings[1].market_value, 18943.66);
+        assert_eq!(holdings[2].symbol, "ABC789");
+        assert_eq!(holdings[2].market_value, 33450.99);
+    }
+
+    #[test]
+    fn test_calculate_orders() {
+        let mut funds = HashMap::new();
+        funds.insert("ABC123".to_string(), 60.0);
+        funds.insert("ABC456".to_string(), 30.0);
+        funds.insert("ABC789".to_string(), 10.0);
+        let config = Config { funds };
+
+        let holdings = vec![
+            Holding { symbol: "ABC123".to_string(), market_value: 6000.0 },
+            Holding { symbol: "ABC456".to_string(), market_value: 2000.0 },
+            Holding { symbol: "ABC789".to_string(), market_value: 1000.0 },
+        ];
+        let cash = 1000.0;
+
+        let orders = calculate_orders(&config, cash, &holdings).unwrap();
+        
+        // Total value: 6000 + 2000 + 1000 + 1000 = 10000
+        // Target ABC123: 10000 * 0.6 = 6000 (current: 6000, diff: 0)
+        // Target ABC456: 10000 * 0.3 = 3000 (current: 2000, diff: +1000)
+        // Target ABC789: 10000 * 0.1 = 1000 (current: 1000, diff: 0)
+        
+        assert_eq!(orders.len(), 1);
+        assert_eq!(orders[0].fund, "ABC456");
+        assert_eq!(orders[0].action, "BUY");
+        assert_eq!(orders[0].amount, 1000.0);
+    }
+
+    #[test]
+    fn test_calculate_orders_with_sells() {
+        let mut funds = HashMap::new();
+        funds.insert("ABC123".to_string(), 30.0);
+        funds.insert("ABC456".to_string(), 30.0);
+        funds.insert("ABC789".to_string(), 40.0);
+        let config = Config { funds };
+
+        let holdings = vec![
+            Holding { symbol: "ABC123".to_string(), market_value: 6000.0 },
+            Holding { symbol: "ABC456".to_string(), market_value: 2000.0 },
+            Holding { symbol: "ABC789".to_string(), market_value: 1000.0 },
+        ];
+        let cash = 1000.0;
+
+        let orders = calculate_orders(&config, cash, &holdings).unwrap();
+        
+        // Total value: 10000
+        // Target ABC123: 10000 * 0.3 = 3000 (current: 6000, diff: -3000)
+        // Target ABC456: 10000 * 0.3 = 3000 (current: 2000, diff: +1000)
+        // Target ABC789: 10000 * 0.4 = 4000 (current: 1000, diff: +3000)
+        
+        assert_eq!(orders.len(), 3);
+        
+        let abc123_order = orders.iter().find(|o| o.fund == "ABC123").unwrap();
+        assert_eq!(abc123_order.action, "SELL");
+        assert_eq!(abc123_order.amount, 3000.0);
+        
+        let abc456_order = orders.iter().find(|o| o.fund == "ABC456").unwrap();
+        assert_eq!(abc456_order.action, "BUY");
+        assert_eq!(abc456_order.amount, 1000.0);
+        
+        let abc789_order = orders.iter().find(|o| o.fund == "ABC789").unwrap();
+        assert_eq!(abc789_order.action, "BUY");
+        assert_eq!(abc789_order.amount, 3000.0);
+    }
+
+    #[test]
+    fn test_calculate_orders_ignores_small_differences() {
+        let mut funds = HashMap::new();
+        funds.insert("ABC123".to_string(), 60.0);
+        let config = Config { funds };
+
+        let holdings = vec![
+            Holding { symbol: "ABC123".to_string(), market_value: 6000.50 },
+        ];
+        let cash = 0.0;
+
+        let orders = calculate_orders(&config, cash, &holdings).unwrap();
+        
+        // Total value: 6000.50
+        // Target ABC123: 6000.50 * 0.6 = 3600.30 (current: 6000.50, diff: -2400.20)
+        // Should create order since difference > $1
+        assert_eq!(orders.len(), 1);
+        
+        // Test with small difference
+        let holdings_small_diff = vec![
+            Holding { symbol: "ABC123".to_string(), market_value: 5999.50 },
+        ];
+        let cash_small = 0.50;
+        
+        let orders_small = calculate_orders(&config, cash_small, &holdings_small_diff).unwrap();
+        // Total: 6000, Target: 3600, Current: 5999.50, diff: -2399.50 > $1
+        assert_eq!(orders_small.len(), 1);
+        
+        // Test with very small difference
+        let holdings_tiny_diff = vec![
+            Holding { symbol: "ABC123".to_string(), market_value: 5999.99 },
+        ];
+        let cash_tiny = 0.01;
+        
+        let orders_tiny = calculate_orders(&config, cash_tiny, &holdings_tiny_diff).unwrap();
+        // Total: 6000, Target: 3600, Current: 5999.99, diff: -2399.99 > $1
+        assert_eq!(orders_tiny.len(), 1);
+    }
+
+    #[test]
+    fn test_write_orders() {
+        let orders = vec![
+            Order { fund: "ABC123".to_string(), action: "BUY".to_string(), amount: 1500.50 },
+            Order { fund: "ABC456".to_string(), action: "SELL".to_string(), amount: 750.25 },
+        ];
+        
+        let temp_file = NamedTempFile::new().unwrap();
+        write_orders(&temp_file.path().to_path_buf(), &orders).unwrap();
+        
+        let content = std::fs::read_to_string(temp_file.path()).unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+        
+        assert_eq!(lines.len(), 3); // header + 2 orders
+        assert_eq!(lines[0], "Symbol,Action,Amount");
+        assert_eq!(lines[1], "ABC123,BUY,1500.50");
+        assert_eq!(lines[2], "ABC456,SELL,750.25");
+    }
+}
