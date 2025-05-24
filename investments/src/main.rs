@@ -13,13 +13,13 @@ struct Args {
     #[arg(short, long)]
     input: PathBuf,
 
-    /// Configuration TOML file with target allocations
+    /// Configuration TOML file with target allocations (defaults to config.toml in input directory)
     #[arg(short, long)]
-    config: PathBuf,
+    config: Option<PathBuf>,
 
-    /// Output CSV file for buy/sell orders
+    /// Output CSV file for buy/sell orders (defaults to input filename with -orders suffix)
     #[arg(short, long)]
-    output: PathBuf,
+    output: Option<PathBuf>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,8 +43,37 @@ struct Order {
 fn main() -> Result<()> {
     let args = Args::parse();
 
+    // Determine config file path
+    let config_path = match args.config {
+        Some(path) => path,
+        None => {
+            let mut default_config = args.input.parent()
+                .ok_or_else(|| anyhow::anyhow!("Cannot determine parent directory of input file"))?
+                .to_path_buf();
+            default_config.push("config.toml");
+            if !default_config.exists() {
+                return Err(anyhow::anyhow!("Config file not found at {:?}. Please create it or specify with --config", default_config));
+            }
+            default_config
+        }
+    };
+
+    // Determine output file path
+    let output_path = match args.output {
+        Some(path) => path,
+        None => {
+            let input_stem = args.input.file_stem()
+                .ok_or_else(|| anyhow::anyhow!("Cannot determine filename from input path"))?
+                .to_str()
+                .ok_or_else(|| anyhow::anyhow!("Input filename contains invalid UTF-8"))?;
+            let mut output_path = args.input.clone();
+            output_path.set_file_name(format!("{}-orders.csv", input_stem));
+            output_path
+        }
+    };
+
     // Load configuration
-    let config = load_config(&args.config)?;
+    let config = load_config(&config_path)?;
     println!("Loaded config with {} funds", config.funds.len());
 
     // Parse CSV input
@@ -57,8 +86,8 @@ fn main() -> Result<()> {
     println!("Generated {} orders", orders.len());
 
     // Write output CSV
-    write_orders(&args.output, &orders)?;
-    println!("Orders written to {:?}", args.output);
+    write_orders(&output_path, &orders)?;
+    println!("Orders written to {:?}", output_path);
 
     Ok(())
 }

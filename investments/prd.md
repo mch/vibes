@@ -22,6 +22,9 @@ A simple command line Rust program that reads bank CSV data and generates buy/se
      - Other fields (Price, Average Cost, Unrealized gains, etc.)
 
 2. **Configuration File (TOML)**: Defines target portfolio allocation
+   - By default, looks for `config.toml` in the same directory as the input file
+   - Can be overridden with `--config` argument
+   - Program exits with error if config file is not found
    - Mutual fund identifiers
    - Target percentage allocation for each fund
    - Example format:
@@ -46,6 +49,9 @@ A simple command line Rust program that reads bank CSV data and generates buy/se
 - Symbol (mutual fund identifier)
 - Action: "BUY" or "SELL"
 - Amount (dollar value)
+- By default, output filename is generated from input filename with "-orders" suffix
+- Example: `12343-holdings-24-May-2025.csv` → `12343-holdings-24-May-2025-orders.csv`
+- Can be overridden with `--output` argument
 
 ### Processing Notes
 - CSV has mixed format: header rows with summary data, followed by investment detail rows
@@ -56,8 +62,13 @@ A simple command line Rust program that reads bank CSV data and generates buy/se
 
 ### Command Line Interface
 ```
-cargo run -- --input <bank_csv_file> --config <config_file> --output <output_csv_file>
+cargo run -- --input <bank_csv_file> [--config <config_file>] [--output <output_csv_file>]
 ```
+
+**Arguments:**
+- `--input` (required): Path to bank CSV file
+- `--config` (optional): Path to TOML config file (defaults to `config.toml` in input file directory)
+- `--output` (optional): Path for output CSV file (defaults to input filename with "-orders" suffix)
 
 ## Technical Requirements
 - Language: Rust
