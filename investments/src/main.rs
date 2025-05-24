@@ -46,24 +46,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     // Determine config file path
-    let config_path = match args.config {
-        Some(path) => path,
-        None => {
-            let mut default_config = args
-                .input
-                .parent()
-                .ok_or_else(|| anyhow::anyhow!("Cannot determine parent directory of input file"))?
-                .to_path_buf();
-            default_config.push("config.toml");
-            if !default_config.exists() {
-                return Err(anyhow::anyhow!(
-                    "Config file not found at {:?}. Please create it or specify with --config",
-                    default_config
-                ));
-            }
-            default_config
-        }
-    };
+    let config_path = determine_config_path(&args.input, args.config)?;
 
     // Determine output file path
     let output_path = match args.output {
@@ -99,6 +82,26 @@ fn main() -> Result<()> {
     println!("Orders written to {:?}", output_path);
 
     Ok(())
+}
+
+fn determine_config_path(input_path: &PathBuf, config_arg: Option<PathBuf>) -> Result<PathBuf> {
+    match config_arg {
+        Some(path) => Ok(path),
+        None => {
+            let mut default_config = input_path
+                .parent()
+                .ok_or_else(|| anyhow::anyhow!("Cannot determine parent directory of input file"))?
+                .to_path_buf();
+            default_config.push("config.toml");
+            if !default_config.exists() {
+                return Err(anyhow::anyhow!(
+                    "Config file not found at {:?}. Please create it or specify with --config",
+                    default_config
+                ));
+            }
+            Ok(default_config)
+        }
+    }
 }
 
 fn load_config(path: &PathBuf) -> Result<Config> {
@@ -422,5 +425,45 @@ ABC789,,FUND3,1031.324,13.456,32.435,13877.50,33450.99,19573.50,141.04,51.49,,,,
         let shares = Decimal::from(3);
         let per_share = total / shares;
         assert_eq!(per_share.round_dp(2), Decimal::from_str("33.33").unwrap());
+    }
+
+    #[test]
+    fn test_determine_config_path() {
+        // Test with provided config path
+        let input_path = PathBuf::from("test/input.csv");
+        let config_path = PathBuf::from("custom/config.toml");
+        let result = determine_config_path(&input_path, Some(config_path.clone())).unwrap();
+        assert_eq!(result, config_path);
+
+        // Test with default config path (file exists)
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let input_file = temp_dir.path().join("portfolio.csv");
+        let config_file = temp_dir.path().join("config.toml");
+        
+        // Create the files
+        std::fs::write(&input_file, "test content").unwrap();
+        std::fs::write(&config_file, "[funds]\nTEST = \"100.0\"").unwrap();
+        
+        let result = determine_config_path(&input_file, None).unwrap();
+        assert_eq!(result, config_file);
+
+        // Test with default config path (file doesn't exist)
+        let temp_dir2 = tempfile::TempDir::new().unwrap();
+        let input_file2 = temp_dir2.path().join("portfolio2.csv");
+        std::fs::write(&input_file2, "test content").unwrap();
+        // Don't create config.toml
+        
+        let result = determine_config_path(&input_file2, None);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Config file not found"));
+
+        // Test with isolated directory that doesn't contain config.toml
+        let temp_dir3 = tempfile::TempDir::new().unwrap();
+        let isolated_input = temp_dir3.path().join("input.csv");
+        std::fs::write(&isolated_input, "test content").unwrap();
+        
+        let result2 = determine_config_path(&isolated_input, None);
+        assert!(result2.is_err());
+        assert!(result2.unwrap_err().to_string().contains("Config file not found"));
     }
 }
