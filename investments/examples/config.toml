@@ -1,4 +1,4 @@
 [funds]
-VTSAX = 60.0
-VTIAX = 30.0
-VBTLX = 10.0
+VTSAX = "60.0"
+VTIAX = "30.0"
+VBTLX = "10.0"

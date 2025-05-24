@@ -19,6 +19,7 @@ The unit tests cover:
 - **`test_calculate_orders_with_sells`**: Tests scenarios requiring sell orders
 - **`test_calculate_orders_ignores_small_differences`**: Verifies $1 threshold behavior
 - **`test_write_orders`**: Tests CSV output generation
+- **`test_decimal_precision_benefits`**: Demonstrates precise money calculations using rust_decimal
 
 ### 2. Integration Tests
 
@@ -59,6 +60,7 @@ cargo run -- --input examples/test-portfolio.csv --config custom-config.toml --o
 
 #### Example Config (`examples/config.toml`)
 - Target allocation: 60% VTSAX, 30% VTIAX, 10% VBTLX
+- **Note**: Uses string values (e.g., `"60.0"`) for precise decimal parsing
 
 #### Expected Results
 The example should generate rebalancing orders to move from current allocation to target allocation.
@@ -75,9 +77,10 @@ Your CSV must include:
 ### Test Config Format
 ```toml
 [funds]
-SYMBOL1 = percentage1
-SYMBOL2 = percentage2
+SYMBOL1 = "percentage1"
+SYMBOL2 = "percentage2"
 # ... percentages should sum to 100
+# Note: Use string values for precise decimal parsing
 ```
 
 ## Running All Tests
@@ -103,22 +106,25 @@ The tests verify:
 - Cash extraction from header rows
 - Fund data extraction from data rows
 - TOML configuration loading
-- Rebalancing calculation accuracy
+- Rebalancing calculation accuracy with precise decimal arithmetic
 - Order generation (BUY/SELL decisions)
 - Minimum order threshold ($1)
 - File I/O operations
 - Error handling for missing files
 - Command line argument processing
 - Default file path behavior
+- Decimal precision benefits (no floating-point errors)
+- Exact money calculations and formatting
 
 ## Debugging Tests
 
 If tests fail:
 1. Check that example files exist in `examples/` directory
 2. Verify CSV format matches expected structure
-3. Ensure config file has valid TOML syntax
+3. Ensure config file has valid TOML syntax with string values for percentages
 4. Run with `--nocapture` to see debug output
 5. Check file permissions for read/write access
+6. Verify decimal parsing - ensure percentage values are quoted strings in TOML
 
 ## Adding New Tests
 

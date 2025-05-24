@@ -1,9 +1,11 @@
 use anyhow::Result;
 use clap::Parser;
+use rust_decimal::Decimal;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 #[derive(Parser)]
 #[command(name = "portfolio-rebalancer")]
@@ -24,20 +26,20 @@ struct Args {
 
 #[derive(Debug, Deserialize)]
 struct Config {
-    funds: HashMap<String, f64>,
+    funds: HashMap<String, Decimal>,
 }
 
 #[derive(Debug)]
 struct Holding {
     symbol: String,
-    market_value: f64,
+    market_value: Decimal,
 }
 
 #[derive(Debug)]
 struct Order {
     fund: String,
     action: String,
-    amount: f64,
+    amount: Decimal,
 }
 
 fn main() -> Result<()> {
@@ -105,12 +107,12 @@ fn load_config(path: &PathBuf) -> Result<Config> {
     Ok(config)
 }
 
-fn parse_csv(path: &PathBuf) -> Result<(f64, Vec<Holding>)> {
+fn parse_csv(path: &PathBuf) -> Result<(Decimal, Vec<Holding>)> {
     let content = fs::read_to_string(path)?;
     let lines: Vec<&str> = content.lines().collect();
 
     let mut holdings = Vec::new();
-    let mut cash = 0.0;
+    let mut cash = Decimal::ZERO;
     let mut in_data_section = false;
     let mut symbol_index = None;
     let mut market_value_index = None;
@@ -120,7 +122,7 @@ fn parse_csv(path: &PathBuf) -> Result<(f64, Vec<Holding>)> {
 
         // Look for cash entry in header section
         if fields.len() >= 2 && fields[0].trim() == "Cash" {
-            if let Ok(value) = fields[1].trim().parse::<f64>() {
+            if let Ok(value) = Decimal::from_str(fields[1].trim()) {
                 cash = value;
             }
             continue;
@@ -149,7 +151,7 @@ fn parse_csv(path: &PathBuf) -> Result<(f64, Vec<Holding>)> {
 
                     // Skip empty symbols and parse market value
                     if !symbol.is_empty() && !market_value_str.is_empty() {
-                        if let Ok(market_value) = market_value_str.parse::<f64>() {
+                        if let Ok(market_value) = Decimal::from_str(market_value_str) {
                             holdings.push(Holding {
                                 symbol: symbol.to_string(),
                                 market_value,
@@ -164,26 +166,26 @@ fn parse_csv(path: &PathBuf) -> Result<(f64, Vec<Holding>)> {
     Ok((cash, holdings))
 }
 
-fn calculate_orders(config: &Config, cash: f64, holdings: &[Holding]) -> Result<Vec<Order>> {
+fn calculate_orders(config: &Config, cash: Decimal, holdings: &[Holding]) -> Result<Vec<Order>> {
     // Calculate total portfolio value
-    let total_invested: f64 = holdings.iter().map(|h| h.market_value).sum();
+    let total_invested: Decimal = holdings.iter().map(|h| h.market_value).sum();
     let total_value = total_invested + cash;
 
     let mut orders = Vec::new();
 
     for (fund_name, target_percent) in &config.funds {
-        let target_value = total_value * (target_percent / 100.0);
+        let target_value = total_value * (*target_percent / Decimal::from(100));
         let current_value = holdings
             .iter()
             .find(|h| &h.symbol == fund_name)
             .map(|h| h.market_value)
-            .unwrap_or(0.0);
+            .unwrap_or(Decimal::ZERO);
 
         let difference = target_value - current_value;
 
-        if difference.abs() > 1.0 {
+        if difference.abs() > Decimal::ONE {
             // Only create orders for differences > $1
-            let action = if difference > 0.0 { "BUY" } else { "SELL" };
+            let action = if difference > Decimal::ZERO { "BUY" } else { "SELL" };
             orders.push(Order {
                 fund: fund_name.clone(),
                 action: action.to_string(),
@@ -203,7 +205,7 @@ fn write_orders(path: &PathBuf, orders: &[Order]) -> Result<()> {
 
     // Write orders
     for order in orders {
-        writer.write_record(&[&order.fund, &order.action, &format!("{:.2}", order.amount)])?;
+        writer.write_record(&[&order.fund, &order.action, &order.amount.round_dp(2).to_string()])?;
     }
 
     writer.flush()?;
@@ -220,9 +222,9 @@ mod tests {
     fn test_load_config() {
         let config_content = r#"
 [funds]
-ABC123 = 60.0
-ABC456 = 30.0
-ABC789 = 10.0
+ABC123 = "60.0"
+ABC456 = "30.0"
+ABC789 = "10.0"
 "#;
         let mut temp_file = NamedTempFile::new().unwrap();
         write!(temp_file, "{}", config_content).unwrap();
@@ -230,9 +232,9 @@ ABC789 = 10.0
         let config = load_config(&temp_file.path().to_path_buf()).unwrap();
         
         assert_eq!(config.funds.len(), 3);
-        assert_eq!(config.funds.get("ABC123"), Some(&60.0));
-        assert_eq!(config.funds.get("ABC456"), Some(&30.0));
-        assert_eq!(config.funds.get("ABC789"), Some(&10.0));
+        assert_eq!(config.funds.get("ABC123"), Some(&Decimal::from(60)));
+        assert_eq!(config.funds.get("ABC456"), Some(&Decimal::from(30)));
+        assert_eq!(config.funds.get("ABC789"), Some(&Decimal::from(10)));
     }
 
     #[test]
@@ -253,30 +255,30 @@ ABC789,,FUND3,1031.324,13.456,32.435,13877.50,33450.99,19573.50,141.04,51.49,,,,
         
         let (cash, holdings) = parse_csv(&temp_file.path().to_path_buf()).unwrap();
         
-        assert_eq!(cash, 5600.43);
+        assert_eq!(cash, Decimal::from_str("5600.43").unwrap());
         assert_eq!(holdings.len(), 3);
         assert_eq!(holdings[0].symbol, "ABC123");
-        assert_eq!(holdings[0].market_value, 6966.62);
+        assert_eq!(holdings[0].market_value, Decimal::from_str("6966.62").unwrap());
         assert_eq!(holdings[1].symbol, "ABC456");
-        assert_eq!(holdings[1].market_value, 18943.66);
+        assert_eq!(holdings[1].market_value, Decimal::from_str("18943.66").unwrap());
         assert_eq!(holdings[2].symbol, "ABC789");
-        assert_eq!(holdings[2].market_value, 33450.99);
+        assert_eq!(holdings[2].market_value, Decimal::from_str("33450.99").unwrap());
     }
 
     #[test]
     fn test_calculate_orders() {
         let mut funds = HashMap::new();
-        funds.insert("ABC123".to_string(), 60.0);
-        funds.insert("ABC456".to_string(), 30.0);
-        funds.insert("ABC789".to_string(), 10.0);
+        funds.insert("ABC123".to_string(), Decimal::from(60));
+        funds.insert("ABC456".to_string(), Decimal::from(30));
+        funds.insert("ABC789".to_string(), Decimal::from(10));
         let config = Config { funds };
 
         let holdings = vec![
-            Holding { symbol: "ABC123".to_string(), market_value: 6000.0 },
-            Holding { symbol: "ABC456".to_string(), market_value: 2000.0 },
-            Holding { symbol: "ABC789".to_string(), market_value: 1000.0 },
+            Holding { symbol: "ABC123".to_string(), market_value: Decimal::from(6000) },
+            Holding { symbol: "ABC456".to_string(), market_value: Decimal::from(2000) },
+            Holding { symbol: "ABC789".to_string(), market_value: Decimal::from(1000) },
         ];
-        let cash = 1000.0;
+        let cash = Decimal::from(1000);
 
         let orders = calculate_orders(&config, cash, &holdings).unwrap();
         
@@ -288,23 +290,23 @@ ABC789,,FUND3,1031.324,13.456,32.435,13877.50,33450.99,19573.50,141.04,51.49,,,,
         assert_eq!(orders.len(), 1);
         assert_eq!(orders[0].fund, "ABC456");
         assert_eq!(orders[0].action, "BUY");
-        assert_eq!(orders[0].amount, 1000.0);
+        assert_eq!(orders[0].amount, Decimal::from(1000));
     }
 
     #[test]
     fn test_calculate_orders_with_sells() {
         let mut funds = HashMap::new();
-        funds.insert("ABC123".to_string(), 30.0);
-        funds.insert("ABC456".to_string(), 30.0);
-        funds.insert("ABC789".to_string(), 40.0);
+        funds.insert("ABC123".to_string(), Decimal::from(30));
+        funds.insert("ABC456".to_string(), Decimal::from(30));
+        funds.insert("ABC789".to_string(), Decimal::from(40));
         let config = Config { funds };
 
         let holdings = vec![
-            Holding { symbol: "ABC123".to_string(), market_value: 6000.0 },
-            Holding { symbol: "ABC456".to_string(), market_value: 2000.0 },
-            Holding { symbol: "ABC789".to_string(), market_value: 1000.0 },
+            Holding { symbol: "ABC123".to_string(), market_value: Decimal::from(6000) },
+            Holding { symbol: "ABC456".to_string(), market_value: Decimal::from(2000) },
+            Holding { symbol: "ABC789".to_string(), market_value: Decimal::from(1000) },
         ];
-        let cash = 1000.0;
+        let cash = Decimal::from(1000);
 
         let orders = calculate_orders(&config, cash, &holdings).unwrap();
         
@@ -317,27 +319,27 @@ ABC789,,FUND3,1031.324,13.456,32.435,13877.50,33450.99,19573.50,141.04,51.49,,,,
         
         let abc123_order = orders.iter().find(|o| o.fund == "ABC123").unwrap();
         assert_eq!(abc123_order.action, "SELL");
-        assert_eq!(abc123_order.amount, 3000.0);
+        assert_eq!(abc123_order.amount, Decimal::from(3000));
         
         let abc456_order = orders.iter().find(|o| o.fund == "ABC456").unwrap();
         assert_eq!(abc456_order.action, "BUY");
-        assert_eq!(abc456_order.amount, 1000.0);
+        assert_eq!(abc456_order.amount, Decimal::from(1000));
         
         let abc789_order = orders.iter().find(|o| o.fund == "ABC789").unwrap();
         assert_eq!(abc789_order.action, "BUY");
-        assert_eq!(abc789_order.amount, 3000.0);
+        assert_eq!(abc789_order.amount, Decimal::from(3000));
     }
 
     #[test]
     fn test_calculate_orders_ignores_small_differences() {
         let mut funds = HashMap::new();
-        funds.insert("ABC123".to_string(), 60.0);
+        funds.insert("ABC123".to_string(), Decimal::from(60));
         let config = Config { funds };
 
         let holdings = vec![
-            Holding { symbol: "ABC123".to_string(), market_value: 6000.50 },
+            Holding { symbol: "ABC123".to_string(), market_value: Decimal::from_str("6000.50").unwrap() },
         ];
-        let cash = 0.0;
+        let cash = Decimal::ZERO;
 
         let orders = calculate_orders(&config, cash, &holdings).unwrap();
         
@@ -348,9 +350,9 @@ ABC789,,FUND3,1031.324,13.456,32.435,13877.50,33450.99,19573.50,141.04,51.49,,,,
         
         // Test with small difference
         let holdings_small_diff = vec![
-            Holding { symbol: "ABC123".to_string(), market_value: 5999.50 },
+            Holding { symbol: "ABC123".to_string(), market_value: Decimal::from_str("5999.50").unwrap() },
         ];
-        let cash_small = 0.50;
+        let cash_small = Decimal::from_str("0.50").unwrap();
         
         let orders_small = calculate_orders(&config, cash_small, &holdings_small_diff).unwrap();
         // Total: 6000, Target: 3600, Current: 5999.50, diff: -2399.50 > $1
@@ -358,9 +360,9 @@ ABC789,,FUND3,1031.324,13.456,32.435,13877.50,33450.99,19573.50,141.04,51.49,,,,
         
         // Test with very small difference
         let holdings_tiny_diff = vec![
-            Holding { symbol: "ABC123".to_string(), market_value: 5999.99 },
+            Holding { symbol: "ABC123".to_string(), market_value: Decimal::from_str("5999.99").unwrap() },
         ];
-        let cash_tiny = 0.01;
+        let cash_tiny = Decimal::from_str("0.01").unwrap();
         
         let orders_tiny = calculate_orders(&config, cash_tiny, &holdings_tiny_diff).unwrap();
         // Total: 6000, Target: 3600, Current: 5999.99, diff: -2399.99 > $1
@@ -370,8 +372,8 @@ ABC789,,FUND3,1031.324,13.456,32.435,13877.50,33450.99,19573.50,141.04,51.49,,,,
     #[test]
     fn test_write_orders() {
         let orders = vec![
-            Order { fund: "ABC123".to_string(), action: "BUY".to_string(), amount: 1500.50 },
-            Order { fund: "ABC456".to_string(), action: "SELL".to_string(), amount: 750.25 },
+            Order { fund: "ABC123".to_string(), action: "BUY".to_string(), amount: Decimal::from_str("1500.50").unwrap() },
+            Order { fund: "ABC456".to_string(), action: "SELL".to_string(), amount: Decimal::from_str("750.25").unwrap() },
         ];
         
         let temp_file = NamedTempFile::new().unwrap();
@@ -384,5 +386,41 @@ ABC789,,FUND3,1031.324,13.456,32.435,13877.50,33450.99,19573.50,141.04,51.49,,,,
         assert_eq!(lines[0], "Symbol,Action,Amount");
         assert_eq!(lines[1], "ABC123,BUY,1500.50");
         assert_eq!(lines[2], "ABC456,SELL,750.25");
+    }
+
+    #[test]
+    fn test_decimal_precision_benefits() {
+        // This test demonstrates why Decimal is better than f64 for money calculations
+        
+        // Example: precise percentage calculations that would fail with f64
+        let portfolio_value = Decimal::from_str("100000.00").unwrap();
+        let target_percent = Decimal::from_str("33.33").unwrap(); // 1/3 allocation
+        
+        // Calculate target value - this is exact with Decimal
+        let target_value = portfolio_value * (target_percent / Decimal::from(100));
+        assert_eq!(target_value, Decimal::from_str("33330.00").unwrap());
+        
+        // Test precise arithmetic that would accumulate errors with f64
+        let mut running_total = Decimal::ZERO;
+        for _ in 0..1000 {
+            running_total += Decimal::from_str("0.01").unwrap(); // Add 1 cent 1000 times
+        }
+        assert_eq!(running_total, Decimal::from(10)); // Exactly $10.00
+        
+        // Test that small differences are handled correctly
+        let amount1 = Decimal::from_str("1000.01").unwrap();
+        let amount2 = Decimal::from_str("1000.02").unwrap();
+        let difference = amount2 - amount1;
+        assert_eq!(difference, Decimal::from_str("0.01").unwrap()); // Exactly 1 cent
+        
+        // Verify formatting preserves precision
+        let precise_amount = Decimal::from_str("12345.67").unwrap();
+        assert_eq!(precise_amount.round_dp(2).to_string(), "12345.67");
+        
+        // Test division doesn't lose precision inappropriately
+        let total = Decimal::from_str("100.00").unwrap();
+        let shares = Decimal::from(3);
+        let per_share = total / shares;
+        assert_eq!(per_share.round_dp(2), Decimal::from_str("33.33").unwrap());
     }
 }
