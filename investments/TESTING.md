@@ -14,12 +14,13 @@ cargo test
 
 The unit tests cover:
 - **`test_load_config`**: Verifies TOML configuration parsing
-- **`test_parse_csv`**: Tests CSV parsing with mixed header/data format
+- **`csv_parser::tests::test_parse_csv`**: Tests CSV parsing with mixed header/data format (in csv_parser module)
 - **`test_calculate_orders`**: Tests rebalancing calculation logic
 - **`test_calculate_orders_with_sells`**: Tests scenarios requiring sell orders
 - **`test_calculate_orders_ignores_small_differences`**: Verifies $1 threshold behavior
 - **`test_write_orders`**: Tests CSV output generation
 - **`test_decimal_precision_benefits`**: Demonstrates precise money calculations using rust_decimal
+- **`test_determine_config_path`**: Tests config file path resolution logic
 
 ### 2. Integration Tests
 
@@ -102,19 +103,25 @@ cargo test --verbose
 ## Test Coverage
 
 The tests verify:
-- CSV parsing handles mixed header/data format
-- Cash extraction from header rows
-- Fund data extraction from data rows
-- TOML configuration loading
-- Rebalancing calculation accuracy with precise decimal arithmetic
-- Order generation (BUY/SELL decisions)
-- Minimum order threshold ($1)
-- File I/O operations
-- Error handling for missing files
-- Command line argument processing
-- Default file path behavior
-- Decimal precision benefits (no floating-point errors)
-- Exact money calculations and formatting
+- **CSV parsing** (in `csv_parser` module):
+  - Mixed header/data format handling
+  - Cash extraction from header rows
+  - Fund data extraction from data rows
+- **Core application logic**:
+  - TOML configuration loading
+  - Config file path resolution and defaults
+  - Rebalancing calculation accuracy with precise decimal arithmetic
+  - Order generation (BUY/SELL decisions)
+  - Minimum order threshold ($1)
+- **File I/O operations**:
+  - CSV reading and writing
+  - Error handling for missing files
+- **Command line processing**:
+  - Argument parsing and validation
+  - Default file path behavior
+- **Decimal precision**:
+  - No floating-point errors
+  - Exact money calculations and formatting
 
 ## Debugging Tests
 
@@ -129,7 +136,16 @@ If tests fail:
 ## Adding New Tests
 
 To add new test cases:
-1. Add unit tests to the `tests` module in `src/main.rs`
-2. Add integration tests to `tests/integration_test.rs`
-3. Create new example data in `examples/` directory
-4. Update this documentation
+1. **Unit tests for main logic**: Add to the `tests` module in `src/main.rs`
+2. **CSV parsing tests**: Add to the `tests` module in `src/csv_parser.rs`
+3. **Integration tests**: Add to `tests/integration_test.rs`
+4. **Example data**: Create new files in `examples/` directory
+5. **Documentation**: Update this file and relevant docs
+
+## Code Organization
+
+The codebase is organized into modules:
+- **`src/main.rs`**: Main application logic, CLI, and core functions
+- **`src/csv_parser.rs`**: CSV parsing functionality and related tests
+- **`tests/integration_test.rs`**: End-to-end workflow tests
+- **`examples/`**: Sample data files for manual testing
