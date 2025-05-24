@@ -1,0 +1,11 @@
+As of Date,2025-05-24 14:39:25
+Account,BANK NAME - ACCOUNT NUMBER
+Cash,5600.43
+Investments,59361.28
+Total Value,64961.71
+Margin,,
+,
+Symbol,Market,Description,Quantity,Average Cost,Price,Book Cost,Market Value,Unrealized $,Unrealized %,% of Positions,Loan Value,Change Today $,Change Today %,Bid,Bid Lots,Ask,Ask Lots,Volume,Day Low,Day High,52-wk Low,52-wk High
+ABC123,,FUND1,123.456,31.789,56.43,3924.54,6966.62,3042.08,77.51,10.72,,,,,,,,,,,,
+ABC456,,FUND2,1234.678,34.232,15.343,42265.50,18943.66,-23321.83,-55.18,29.16,,,,,,,,,,,,
+ABC789,,FUND3,1031.324,13.456,32.435,13877.50,33450.99,19573.50,141.04,51.49,,,,,,,,,,,,
