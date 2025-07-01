@@ -1,0 +1,48 @@
+{
+  "error": {
+    "message": "Failed to parse API response as JSON: Unexpected token '`', \"```json\n{\n\"... is not valid JSON",
+    "stack": "Error: Failed to parse API response as JSON: Unexpected token '`', \"```json\n{\n\"... is not valid JSON\n    at GeminiClient.generateJson (file:///Users/mch/.local/share/mise/installs/node/24.2.0/lib/node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/core/client.js:226:23)\n    at async checkNextSpeaker (file:///Users/mch/.local/share/mise/installs/node/24.2.0/lib/node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/utils/nextSpeakerChecker.js:98:33)\n    at async GeminiClient.sendMessageStream (file:///Users/mch/.local/share/mise/installs/node/24.2.0/lib/node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/core/client.js:179:38)\n    at async file:///Users/mch/.local/share/mise/installs/node/24.2.0/lib/node_modules/@google/gemini-cli/dist/src/ui/hooks/useGeminiStream.js:276:26\n    at async file:///Users/mch/.local/share/mise/installs/node/24.2.0/lib/node_modules/@google/gemini-cli/dist/src/ui/hooks/useGeminiStream.js:343:38"
+  },
+  "context": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "This is the Gemini CLI. We are setting up the context for our chat.\n  Today's date is Tuesday, July 1, 2025.\n  My operating system is: darwin\n  I'm currently working in the directory: /Users/mch/Work/typescript-template\n  Showing up to 200 items (files + folders). Folders or files indicated with ... contain more items not shown, were ignored, or the display limit (200 items) was reached.\n\n/Users/mch/Work/typescript-template/\n├───.editorconfig\n├───.gitignore\n├───biome.json\n├───package-lock.json\n├───package.json\n├───README.md\n├───tsconfig.json\n├───.git/...\n├───.zed/\n│   └───tasks.json\n├───node_modules/...\n├───src/\n│   └───index.ts\n└───test/\n    └───sample.test.ts"
+        }
+      ]
+    },
+    {
+      "role": "model",
+      "parts": [
+        {
+          "text": "Got it. Thanks for the context!"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "what is this codebase"
+        }
+      ]
+    },
+    {
+      "parts": [
+        {
+          "text": "Based on the file and directory structure, this is a **template or boilerplate project for developing a new application or library using TypeScript**.\n\nHere's a breakdown of what each part tells us:\n\n### High-Level Purpose\n\nThe directory name itself, `typescript-template`, is the biggest clue. This isn't a specific, finished application. It's a pre-configured starting point designed to let a developer quickly begin a new TypeScript project without having to set up all the basic tooling from scratch.\n\n### Technology Stack and Tooling\n\n*   **Language**: **TypeScript**. This is confirmed by `tsconfig.json` (the TypeScript compiler configuration file) and the `.ts` file extensions in `src/` and `test/`.\n\n*   **Runtime Environment**: **Node.js**. The presence of `package.json`, `package-lock.json`, and the `node_modules` directory are standard for any project managed with `npm` (Node Package Manager).\n\n*   **Code Quality (Linting/Formatting)**: **Biome**. The `biome.json` file indicates this project uses [Biome](https://biomejs.dev/) to enforce a consistent code style and catch potential errors. Biome is a modern, fast alternative to tools like ESLint and Prettier.\n\n*   **Testing**: The project is set up for **unit testing**. The `test/` directory with a `sample.test.ts` file is a clear indicator. The specific testing framework (like Jest, Vitest, or Mocha) would be defined as a dependency in `package.json`.\n\n*   **Version Control**: It's a **Git repository**, indicated by the `.git/` directory. The `.gitignore` file is configured to exclude files that shouldn't be checked into version control (like `node_modules`).\n\n*   **Editor & Development Experience**:\n    *   `.editorconfig`: Helps maintain consistent coding styles (like indentation and line endings) across different code editors.\n    *   `.zed/tasks.json`: This is a configuration file for the [Zed code editor](https://zed.dev/). It likely defines custom commands or \"tasks\" that you can run from within the editor, such as `npm test` or `npm run build`.\n\n### Project Structure\n\n*   `src/`: This is where your main application source code lives. `index.ts` is the conventional entry point for the application.\n*   `test/`: This folder contains all the test files that verify the code in `src/` works as expected.\n*   `package.json`: The heart of the project. It lists metadata (name, version), dependencies, and scripts (like `start`, `build`, `test`).\n*   `package-lock.json`: This file locks the exact versions of the project's dependencies to ensure that everyone who works on the project has the same set of packages, leading to reproducible builds.\n\n### In short:\n\nYou're looking at a clean, modern, and well-structured starting point for a new TypeScript project. The next logical step would be to run `npm install` to install the dependencies and then look at the `\"scripts\"` section in `package.json` to see how to run, test, and build the project."
+        }
+      ],
+      "role": "model"
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "Analyze *only* the content and structure of your immediately preceding response (your last turn in the conversation history). Based *strictly* on that response, determine who should logically speak next: the 'user' or the 'model' (you).\n**Decision Rules (apply in order):**\n1.  **Model Continues:** If your last response explicitly states an immediate next action *you* intend to take (e.g., \"Next, I will...\", \"Now I'll process...\", \"Moving on to analyze...\", indicates an intended tool call that didn't execute), OR if the response seems clearly incomplete (cut off mid-thought without a natural conclusion), then the **'model'** should speak next.\n2.  **Question to User:** If your last response ends with a direct question specifically addressed *to the user*, then the **'user'** should speak next.\n3.  **Waiting for User:** If your last response completed a thought, statement, or task *and* does not meet the criteria for Rule 1 (Model Continues) or Rule 2 (Question to User), it implies a pause expecting user input or reaction. In this case, the **'user'** should speak next.\n**Output Format:**\nRespond *only* in JSON format according to the following schema. Do not include any text outside the JSON structure.\n```json\n{\n  \"type\": \"object\",\n  \"properties\": {\n    \"reasoning\": {\n        \"type\": \"string\",\n        \"description\": \"Brief explanation justifying the 'next_speaker' choice based *strictly* on the applicable rule and the content/structure of the preceding turn.\"\n    },\n    \"next_speaker\": {\n      \"type\": \"string\",\n      \"enum\": [\"user\", \"model\"],\n      \"description\": \"Who should speak next based *only* on the preceding turn and the decision rules.\"\n    }\n  },\n  \"required\": [\"next_speaker\", \"reasoning\"]\n}\n```\n"
+        }
+      ]
+    }
+  ]
+}
